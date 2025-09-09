@@ -5,9 +5,17 @@ import org.springframework.web.bind.annotation.RestController;
 import com.userservice.entities.User;
 import com.userservice.services.UserService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 
 import java.util.List;
 
+import javax.net.ssl.SSLEngineResult.Status;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,6 +33,9 @@ public class UserController {
 
     private final UserService userService;
 
+    
+    private Logger logger=LoggerFactory.getLogger(UserController.class);
+
     public UserController(UserService userService) {
         this.userService = userService;
     }
@@ -38,10 +49,22 @@ public class UserController {
     }
 
     // READ - Get user by Id
+   // int count=1;
     @GetMapping("/{userId}")
+    //@CircuitBreaker(name = "ratingHotelBreaker",fallbackMethod = "ratingHotelFallback")
+    //@Retry(name = "retryForRatingHotel",fallbackMethod = "ratingHotelFallback")
+    @RateLimiter(name = "ratingHotelLimiter",fallbackMethod = "ratingHotelFallback")
     public ResponseEntity<User> getUser(@PathVariable String userId) {
+        //logger.info("Retry Count"+count++);
         User user = userService.getUserById(userId);
         return ResponseEntity.ok(user);
+    }
+
+    //Fall Back Methods 
+    public ResponseEntity<User> ratingHotelFallback(String string,Exception ex){
+        logger.info("FallBack is executed Beacuse service is down"+ex.getMessage());
+        User user=User.builder().email("dummyemail@gmail.com").name("dummy name").uId("141234").build();
+        return new ResponseEntity<>(user,HttpStatus.OK);
     }
 
     // READ - Get all users
